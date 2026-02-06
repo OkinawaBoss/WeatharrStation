@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import sys
 import threading
 import tempfile
@@ -49,6 +50,10 @@ from weatherstream.utils import (
 )
 from weatherstream.data.major_cities import major_cities_near, canonical_city_name
 from weatherstream import map_tiles
+
+
+BASE_WIDTH = 1920
+BASE_HEIGHT = 1080
 
 
 # -----------------------------
@@ -126,7 +131,7 @@ class _RssTitleCache:
         return list(self._titles)
 
 
-def _make_datastore(cfg) -> DataStore:
+def _make_datastore(cfg, render_width: int, render_height: int, scale: float) -> DataStore:
     """Background data refresh thread; fetches NOAA data and map assets."""
 
     # If coords not provided yet, NWSClient will still be constructed once lat/lon are set.
@@ -439,8 +444,8 @@ def _make_datastore(cfg) -> DataStore:
             if p.get("lat") is not None and p.get("lon") is not None
         ]
         bounds = compute_bounds(coords, lat, lon, pad_degrees=0.2, min_span=2.0, max_span=None)
-        map_width = max(200, cfg.width - 192)
-        map_height = max(200, cfg.height - 472)
+        map_width = max(200, render_width - int(round(192 * scale)))
+        map_height = max(200, render_height - int(round(472 * scale)))
         try:
             view = map_tiles.compose_base_map(
                 bounds[0],
@@ -527,8 +532,8 @@ def _make_datastore(cfg) -> DataStore:
         data["forecast_map_image"] = forecast_image
         data["forecast_map_bounds"] = forecast_bounds
 
-        radar_width = max(200, cfg.width - 160)
-        radar_height = max(200, cfg.height - 432)
+        radar_width = max(200, render_width - int(round(160 * scale)))
+        radar_height = max(200, render_height - int(round(432 * scale)))
         try:
             map_tiles.ensure_radar_frames(
                 announce=False,
@@ -593,16 +598,25 @@ class PageCycler:
             self.activate(self._index + 1)
 
 
-def _build_layers(cfg, data_store: DataStore) -> tuple[list[Layer], PageCycler]:
+def _build_layers(
+    cfg,
+    data_store: DataStore,
+    render_width: int,
+    render_height: int,
+    scale: float,
+) -> tuple[list[Layer], PageCycler]:
     layers: list[Layer] = []
     pages: list[dict[str, object]] = []
 
+    def _s(val: float, minimum: int = 0) -> int:
+        return max(minimum, int(round(val * scale)))
+
     def content_bounds(top_gutter: int = 220, bottom_extra: int = 24) -> tuple[int, int, int, int]:
-        x = 48
+        x = _s(48)
         y = top_gutter
-        w = max(320, cfg.width - 96)
-        ticker_h = 64
-        h = max(160, cfg.height - (y + ticker_h + 20 + bottom_extra))
+        w = max(_s(320, 1), render_width - _s(96))
+        ticker_h = _s(64, 1)
+        h = max(_s(160, 1), render_height - (y + ticker_h + _s(20) + bottom_extra))
         return x, y, w, h
 
     def current_temp_text() -> str:
@@ -617,9 +631,9 @@ def _build_layers(cfg, data_store: DataStore) -> tuple[list[Layer], PageCycler]:
         return ""
 
     # Clock (top-right)
-    clock_w, clock_h = 480, 200
-    clock_x = cfg.width - clock_w - 48
-    clock_y = 24
+    clock_w, clock_h = _s(480, 1), _s(200, 1)
+    clock_x = render_width - clock_w - _s(48)
+    clock_y = _s(24)
     clock_layer = ClockLayer(
         x=clock_x,
         y=clock_y,
@@ -627,31 +641,34 @@ def _build_layers(cfg, data_store: DataStore) -> tuple[list[Layer], PageCycler]:
         h=clock_h,
         min_interval=1.0,
         temp_supplier=current_temp_text,
+        scale=scale,
     )
     clock_layer.z = 200
     layers.append(clock_layer)
 
     # Ticker (bottom) — reads the composed string from the datastore
-    ticker_h = 64
-    ticker_y = cfg.height - ticker_h - 20
+    ticker_h = _s(64, 1)
+    ticker_y = render_height - ticker_h - _s(20)
     ticker_layer = TickerLayer(
-        x=48,
+        x=_s(48),
         y=ticker_y,
-        w=cfg.width - 96,
+        w=render_width - _s(96),
         h=ticker_h,
         min_interval=1 / 30.0,
-        px_per_sec=cfg.ticker_speed_px_per_sec,
+        px_per_sec=max(1, int(round(cfg.ticker_speed_px_per_sec * scale))),
         get_text=lambda: (data_store.read().get("ticker_text") or "Weather data loading...").strip(),
+        scale=scale,
     )
     ticker_layer.z = 200
     layers.append(ticker_layer)
 
     def add_page(name: str, builder: Callable[[tuple[int, int, int, int]], list[Layer]], *, top: int) -> None:
-        bounds = content_bounds(top)
+        bounds = content_bounds(_s(top), _s(24))
         chrome = ChromeLayer(
-            width=cfg.width,
-            height=cfg.height,
+            width=render_width,
+            height=render_height,
             location_name=cfg.location_name,
+            scale=scale,
         )
         chrome.z = 0
         page_layers = [chrome]
@@ -670,9 +687,10 @@ def _build_layers(cfg, data_store: DataStore) -> tuple[list[Layer], PageCycler]:
                 x=b[0],
                 y=b[1],
                 w=b[2],
-                h=min(420, b[3]),
+                h=min(_s(420, 1), b[3]),
                 get_data=lambda: data_store.read().get("current", {}),
                 min_interval=5.0,
+                scale=scale,
             )
         ],
         top=240,
@@ -691,6 +709,7 @@ def _build_layers(cfg, data_store: DataStore) -> tuple[list[Layer], PageCycler]:
                     data_store.read().get("radar_new_frames")
                 ),
                 frame_hold=3,
+                scale=scale,
             )
         ],
         top=220,
@@ -710,6 +729,7 @@ def _build_layers(cfg, data_store: DataStore) -> tuple[list[Layer], PageCycler]:
                 ),
                 get_bounds=lambda: data_store.read().get("forecast_map_bounds"),
                 min_interval=15.0,
+                scale=scale,
             )
         ],
         top=240,
@@ -729,6 +749,7 @@ def _build_layers(cfg, data_store: DataStore) -> tuple[list[Layer], PageCycler]:
                 ),
                 get_bounds=lambda: data_store.read().get("regional_map_bounds"),
                 min_interval=20.0,
+                scale=scale,
             )
         ],
         top=240,
@@ -744,6 +765,7 @@ def _build_layers(cfg, data_store: DataStore) -> tuple[list[Layer], PageCycler]:
                 h=b[3],
                 get_points=lambda: data_store.read().get("hourly_points", []) or [],
                 min_interval=15.0,
+                scale=scale,
             )
         ],
         top=260,
@@ -759,6 +781,7 @@ def _build_layers(cfg, data_store: DataStore) -> tuple[list[Layer], PageCycler]:
                 h=b[3],
                 get_days=lambda: data_store.read().get("daily_days", []) or [],
                 min_interval=30.0,
+                scale=scale,
             )
         ],
         top=260,
@@ -774,6 +797,7 @@ def _build_layers(cfg, data_store: DataStore) -> tuple[list[Layer], PageCycler]:
                 h=b[3],
                 get_periods=lambda: data_store.read().get("forecast_periods", []) or [],
                 min_interval=30.0,
+                scale=scale,
             )
         ],
         top=260,
@@ -789,6 +813,7 @@ def _build_layers(cfg, data_store: DataStore) -> tuple[list[Layer], PageCycler]:
                 h=b[3],
                 get_rows=lambda: data_store.read().get("latest_rows", []) or [],
                 min_interval=15.0,
+                scale=scale,
             )
         ],
         top=252,
@@ -852,12 +877,24 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     page_cycler: PageCycler | None = None
 
+    output_width = int(cfg.width or BASE_WIDTH)
+    output_height = int(cfg.height or BASE_HEIGHT)
+    if output_width <= 0:
+        output_width = BASE_WIDTH
+    if output_height <= 0:
+        output_height = BASE_HEIGHT
+    scale = min(output_width / BASE_WIDTH, output_height / BASE_HEIGHT)
+    render_width = output_width
+    render_height = output_height
+
     # Output streamer (encoder CFR = cfg.output_fps). We will re-send last frame if nothing changed.
     streamer = FFMPEGStreamer(
-        width=cfg.width,
-        height=cfg.height,
+        width=render_width,
+        height=render_height,
         fps=cfg.output_fps,
         out_url=getattr(cfg, "out", None) or getattr(cfg, "out_url", None) or "file:out.ts",
+        out_width=output_width,
+        out_height=output_height,
 
         voice_fifo=getattr(cfg, "voice_fifo", None),
         music_fifo=music_fifo_path,
@@ -885,11 +922,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     streamer.start()
 
     # Data loop
-    data_store = _make_datastore(cfg)
+    data_store = _make_datastore(cfg, render_width, render_height, scale)
 
     # Layers + compositor
-    layers, page_cycler = _build_layers(cfg, data_store)
-    comp = Compositor(w=cfg.width, h=cfg.height)
+    layers, page_cycler = _build_layers(cfg, data_store, render_width, render_height, scale)
+    comp = Compositor(w=render_width, h=render_height)
 
     # Event-driven scheduler (per-layer cadence + CFR wrapper)
     sched = Scheduler(layers=layers, cfr_hz=cfg.output_fps)
@@ -904,9 +941,65 @@ def main(argv: Optional[list[str]] = None) -> int:
         except Exception as e:
             print(f"[stream] write failed: {e!r}", flush=True)
 
+    def _build_disable_checker():
+        plugin_key = os.environ.get("WEATHARR_PLUGIN_KEY")
+        if not plugin_key:
+            return None
+        interval = float(os.environ.get("WEATHARR_DISABLE_CHECK_INTERVAL", "5"))
+        station_id_raw = os.environ.get("WEATHARR_STATION_ID", "1")
+        try:
+            station_id = max(1, int(station_id_raw))
+        except (TypeError, ValueError):
+            station_id = 1
+        last_check = 0.0
+        django_ready = False
+
+        def _parse_bool(val, default: bool | None = None) -> bool | None:
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, int) and val in (0, 1):
+                return bool(val)
+            if isinstance(val, str):
+                normalized = val.strip().lower()
+                if normalized in ("true", "1", "yes", "y", "on"):
+                    return True
+                if normalized in ("false", "0", "no", "n", "off"):
+                    return False
+            return default
+
+        def _should_stop():
+            nonlocal last_check, django_ready
+            now = time.time()
+            if now - last_check < interval:
+                return False
+            last_check = now
+            try:
+                import django
+                if not django_ready:
+                    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "dispatcharr.settings")
+                    django.setup()
+                    django_ready = True
+                from apps.plugins.models import PluginConfig
+                cfg = PluginConfig.objects.filter(key=plugin_key).first()
+                if not cfg or not cfg.enabled:
+                    return True
+                settings = cfg.settings or {}
+                field_name = f"station_{station_id}_enabled"
+                default_enabled = station_id == 1
+                enabled_val = _parse_bool(settings.get(field_name), default=default_enabled)
+                if enabled_val is False:
+                    return True
+                return False
+            except Exception:
+                return False
+
+        return _should_stop
+
+    should_stop = _build_disable_checker()
+
     # Run until Ctrl+C
     try:
-        sched.run_forever(compositor=comp, on_present=on_present)
+        sched.run_forever(compositor=comp, on_present=on_present, should_stop=should_stop)
     except KeyboardInterrupt:
         pass
     finally:

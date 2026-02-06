@@ -20,13 +20,14 @@ class ForecastMapLayer(Layer):
                  get_points:Callable[[],List[Dict[str,Any]]],
                  get_map:Callable[[],Image.Image|None],
                  get_bounds:Callable[[],Tuple[float,float,float,float] | None],
-                 min_interval:float=10.0):
-        super().__init__(x,y,w,h,min_interval=min_interval)
+                 min_interval:float=10.0,
+                 scale: float = 1.0):
+        super().__init__(x,y,w,h,min_interval=min_interval, scale=scale)
         self.get_points = get_points
         self.get_map = get_map
         self.get_bounds = get_bounds
-        self.f_sm = _font(32)
-        self.f_tiny = _font(24)
+        self.f_sm = _font(self.s(32, 10))
+        self.f_tiny = _font(self.s(24, 8))
 
     def tick(self, now: float):
         draw = ImageDraw.Draw(self.surface)
@@ -46,11 +47,11 @@ class ForecastMapLayer(Layer):
             grid = (40,60,80,160)
             for frac in (0.25,0.5,0.75):
                 y = int(frac*self.surface.height); x=int(frac*self.surface.width)
-                draw.line((0,y,self.surface.width,y), fill=grid, width=2)
-                draw.line((x,0,x,self.surface.height), fill=grid, width=2)
+                draw.line((0,y,self.surface.width,y), fill=grid, width=self.s(2, 1))
+                draw.line((x,0,x,self.surface.height), fill=grid, width=self.s(2, 1))
 
         if not pts:
-            draw.text((12,12),"Forecast data unavailable",font=self.f_sm,fill=(255,255,255,255))
+            draw.text((self.s(12), self.s(12)),"Forecast data unavailable",font=self.f_sm,fill=(255,255,255,255))
             return self._mark_all_dirty_if_changed()
 
         b = self.get_bounds()
@@ -79,16 +80,18 @@ class ForecastMapLayer(Layer):
             ip = find_icon_path(pick_icon(p.get("forecast_short"), p.get("is_day")))
             if ip:
                 try:
-                    icon = Image.open(ip).convert("RGBA").resize((64,64))
-                    self.surface.paste(icon,(x-32,y-32),icon)
+                    icon_size = self.s(64, 1)
+                    icon = Image.open(ip).convert("RGBA").resize((icon_size, icon_size))
+                    self.surface.paste(icon,(x-(icon_size//2),y-(icon_size//2)),icon)
                 except Exception:
                     pass
-            draw.ellipse((x-6,y-6,x+6,y+6), outline=(255,255,255,220), width=2)
+            dot = self.s(6, 1)
+            draw.ellipse((x-dot,y-dot,x+dot,y+dot), outline=(255,255,255,220), width=self.s(2, 1))
 
-            label_x,label_y=x+16,y-24
+            label_x,label_y=x+self.s(16, 1),y-self.s(24, 1)
             for ex,ey in label_pos:
-                if abs(label_x-ex)<100 and abs(label_y-ey)<32:
-                    label_y+=36
+                if abs(label_x-ex)<self.s(100, 1) and abs(label_y-ey)<self.s(32, 1):
+                    label_y+=self.s(36, 1)
             label_pos.append((label_x,label_y))
             temp = p.get("forecast_temp","--")
             draw.text(
@@ -96,15 +99,15 @@ class ForecastMapLayer(Layer):
                 str(p.get("name","City")),
                 font=self.f_sm,
                 fill=(250,252,255,255),
-                stroke_width=4,
+                stroke_width=self.s(4, 1),
                 stroke_fill=(0, 0, 0, 220),
             )
             draw.text(
-                (label_x,label_y+38),
+                (label_x,label_y+self.s(38, 1)),
                 str(temp),
                 font=self.f_sm,
                 fill=(255,230,120,255),
-                stroke_width=4,
+                stroke_width=self.s(4, 1),
                 stroke_fill=(0, 0, 0, 220),
             )
 

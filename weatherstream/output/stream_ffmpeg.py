@@ -4,8 +4,10 @@ from __future__ import annotations
 import errno
 import os
 import platform
+import queue
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 from functools import lru_cache
 from urllib.parse import urlparse
@@ -20,6 +22,8 @@ class FFMPEGStreamer:
         fps: int,
         out_url: str,
         *,
+        out_width: int | None = None,
+        out_height: int | None = None,
         voice_fifo: str | None = None,
         music_fifo: str | None = None,
         music_playlist: str | None = None,
@@ -44,11 +48,15 @@ class FFMPEGStreamer:
         pcr_period_ms: int = 40,
         flush_packets: bool = False,
         print_cmd: bool = False,
+        drop_when_behind: bool = True,
+        max_queue: int = 2,
     ):
         self.width = int(width)
         self.height = int(height)
         self.fps = int(fps)
         self.out_url = str(out_url)
+        self.out_width = int(out_width) if out_width else None
+        self.out_height = int(out_height) if out_height else None
 
         self.voice_fifo = voice_fifo
         self.music_fifo = music_fifo
@@ -82,6 +90,13 @@ class FFMPEGStreamer:
 
         self.print_cmd = bool(print_cmd)
         self.proc: subprocess.Popen | None = None
+        self.drop_when_behind = bool(drop_when_behind)
+        self.max_queue = max(1, int(max_queue))
+        self._queue: queue.Queue[bytes] | None = None
+        self._writer_thread: threading.Thread | None = None
+        self._stop_event = threading.Event()
+        self._proc_dead = False
+        self._proc_lock = threading.Lock()
 
     # ------------------------- helpers -------------------------
 
@@ -288,6 +303,11 @@ class FFMPEGStreamer:
             cmd += ["-use_wallclock_as_timestamps", "1"]
         cmd += ["-i", "-"]
 
+        if self.out_width and self.out_height and (
+            self.out_width != self.width or self.out_height != self.height
+        ):
+            cmd += ["-vf", f"scale={self.out_width}:{self.out_height}"]
+
         # Optional audio inputs
         idx = 1
         voice_idx = None
@@ -392,13 +412,27 @@ class FFMPEGStreamer:
             print("FFmpeg CMD:\n", " ".join(cmd), flush=True)
 
         try:
-            self.proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                bufsize=0,
-            )
+            with self._proc_lock:
+                self.proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    bufsize=0,
+                )
+                self._proc_dead = False
         except FileNotFoundError as exc:
             raise RuntimeError("ffmpeg executable not found; ensure ffmpeg is installed") from exc
+
+        if self.drop_when_behind:
+            if self._queue is None or self._queue.maxsize != self.max_queue:
+                self._queue = queue.Queue(maxsize=self.max_queue)
+            if not self._writer_thread or not self._writer_thread.is_alive():
+                self._stop_event.clear()
+                self._writer_thread = threading.Thread(
+                    target=self._writer_loop,
+                    name="ffmpeg-writer",
+                    daemon=True,
+                )
+                self._writer_thread.start()
 
     def _restart(self) -> None:
         try:
@@ -407,10 +441,40 @@ class FFMPEGStreamer:
             pass
         self.start()
 
+    def _write_all(self, payload: bytes) -> None:
+        proc = self.proc
+        if proc is None or proc.stdin is None:
+            raise RuntimeError("FFmpeg process not available")
+        view = memoryview(payload)
+        while view:
+            written = os.write(proc.stdin.fileno(), view)
+            view = view[written:]
+
+    def _writer_loop(self) -> None:
+        while not self._stop_event.is_set():
+            if self._queue is None:
+                break
+            try:
+                payload = self._queue.get(timeout=0.25)
+            except queue.Empty:
+                continue
+            if payload is None:
+                break
+            try:
+                with self._proc_lock:
+                    proc = self.proc
+                    if proc is None or proc.poll() is not None or proc.stdin is None:
+                        self._proc_dead = True
+                        continue
+                    self._write_all(payload)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                self._proc_dead = True
+                continue
+
     def send(self, frame) -> bool:
-        if self.proc is None or self.proc.poll() is not None or self.proc.stdin is None:
+        if self.proc is None or self.proc.poll() is not None or self._proc_dead:
             self.start()
-        if self.proc is None or self.proc.stdin is None:
+        if self.proc is None:
             raise RuntimeError("FFmpeg process not available")
 
         if isinstance(frame, (bytes, bytearray, memoryview)):
@@ -420,8 +484,18 @@ class FFMPEGStreamer:
         else:
             raise TypeError(f"Unsupported frame type: {type(frame)!r}")
 
+        if self.drop_when_behind:
+            if self._queue is None:
+                self._queue = queue.Queue(maxsize=self.max_queue)
+            try:
+                self._queue.put_nowait(payload)
+                return True
+            except queue.Full:
+                # Drop frame if writer is backed up.
+                return False
+
         try:
-            self.proc.stdin.write(payload)
+            self._write_all(payload)
             return True
         except (BrokenPipeError, ConnectionResetError):
             print("[FFMPEGStreamer] Output connection closed; restarting ffmpeg…", flush=True)
@@ -435,6 +509,17 @@ class FFMPEGStreamer:
             raise
 
     def stop(self):
+        if self.drop_when_behind:
+            self._stop_event.set()
+            if self._queue is not None:
+                try:
+                    self._queue.put_nowait(None)
+                except queue.Full:
+                    pass
+            if self._writer_thread and self._writer_thread.is_alive():
+                if threading.current_thread() is not self._writer_thread:
+                    self._writer_thread.join(timeout=2.0)
+            self._writer_thread = None
         if self.proc:
             try:
                 if self.proc.stdin:

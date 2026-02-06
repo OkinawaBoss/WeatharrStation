@@ -10,11 +10,11 @@ def _font(size=36):
         return ImageFont.load_default()
 
 class TickerLayer(Layer):
-    def __init__(self, x:int, y:int, w:int, h:int, min_interval:float, px_per_sec:int, get_text):
-        super().__init__(x, y, w, h, min_interval=min_interval)
+    def __init__(self, x:int, y:int, w:int, h:int, min_interval:float, px_per_sec:int, get_text, scale: float = 1.0):
+        super().__init__(x, y, w, h, min_interval=min_interval, scale=scale)
         self.speed = float(px_per_sec)
         self.get_text = get_text
-        self._font = _font(24)
+        self._font = _font(self.s(24, 10))
         self._strip: Image.Image | None = None
         self._offset: float = 0.0
         self._last_text: str = ""
@@ -29,10 +29,15 @@ class TickerLayer(Layer):
 
         spacer = "    •    "
         long_text = (text + spacer) * 8
-        tmp = Image.new("RGBA", (max(1, len(long_text) * 14), self.bounds[3]), (0,0,0,0))
+        dummy = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+        d = ImageDraw.Draw(dummy)
+        bbox = d.textbbox((0, 0), long_text, font=self._font)
+        text_w = max(1, bbox[2] - bbox[0])
+        text_h = max(1, bbox[3] - bbox[1])
+        tmp = Image.new("RGBA", (text_w, self.bounds[3]), (0,0,0,0))
         d = ImageDraw.Draw(tmp)
-        y = (self.bounds[3] - 24) // 2
-        d.text((0, y), long_text, font=self._font, fill=(255,255,255,255))
+        y = max(0, (self.bounds[3] - text_h) // 2)
+        d.text((-bbox[0], y - bbox[1]), long_text, font=self._font, fill=(255,255,255,255))
         self._strip = tmp
         self._offset = 0.0
 

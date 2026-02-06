@@ -17,12 +17,12 @@ class CurrentLayer(Layer):
       temp_f, observed_conditions/forecast_short, wind_dir, wind_speed_mph,
       station_name, humidity, dew_f, heat_index, pressure_inhg, visibility_mi, ceiling_ft, forecast_is_day
     """
-    def __init__(self, x:int, y:int, w:int, h:int, get_data: Callable[[], Dict[str,Any]], min_interval:float=5.0):
-        super().__init__(x,y,w,h,min_interval=min_interval)
+    def __init__(self, x:int, y:int, w:int, h:int, get_data: Callable[[], Dict[str,Any]], min_interval:float=5.0, scale: float = 1.0):
+        super().__init__(x,y,w,h,min_interval=min_interval, scale=scale)
         self.get_data = get_data
-        self.f_big = _font(72)
-        self.f_sm = _font(36)
-        self.f_tiny = _font(26)
+        self.f_big = _font(self.s(72, 12))
+        self.f_sm = _font(self.s(36, 10))
+        self.f_tiny = _font(self.s(26, 10))
 
     def tick(self, now: float):
         d = self.get_data() or {}
@@ -44,16 +44,17 @@ class CurrentLayer(Layer):
         if ip:
             try:
                 from PIL import Image
-                icon = Image.open(ip).convert("RGBA").resize((140,140))
-                self.surface.paste(icon, (24,24), icon)
+                icon_size = self.s(140, 1)
+                icon = Image.open(ip).convert("RGBA").resize((icon_size, icon_size))
+                self.surface.paste(icon, (self.s(24), self.s(24)), icon)
             except Exception:
                 pass
 
-        draw.text((180, 20), temp_text, fill=(255,255,255,255), font=self.f_big)
-        draw.text((180, 120), cond, fill=(230,240,255,255), font=self.f_sm)
-        draw.text((180, 172), f"Wind {wind}", fill=(210,220,230,255), font=self.f_sm)
+        draw.text((self.s(180), self.s(20)), temp_text, fill=(255,255,255,255), font=self.f_big)
+        draw.text((self.s(180), self.s(120)), cond, fill=(230,240,255,255), font=self.f_sm)
+        draw.text((self.s(180), self.s(172)), f"Wind {wind}", fill=(210,220,230,255), font=self.f_sm)
 
-        x0, y0 = 32, 220
+        x0, y0 = self.s(32), self.s(220)
         rows = [
             ("Humidity", f"{int(d['humidity'])}%" if d.get("humidity") is not None else "--"),
             ("Dewpoint", f"{d['dew_f']:.1f}°F" if d.get("dew_f") is not None else "--"),
@@ -65,8 +66,8 @@ class CurrentLayer(Layer):
         col_w = self.surface.width // 2
         for i,(k,v) in enumerate(rows):
             cx = x0 + (i%2)*col_w
-            cy = y0 + (i//2)*60
+            cy = y0 + (i//2)*self.s(60, 1)
             draw.text((cx, cy), k, font=self.f_tiny, fill=(200,210,220,255))
-            draw.text((cx, cy+28), v, font=self.f_tiny, fill=(255,255,255,255))
+            draw.text((cx, cy+self.s(28, 1)), v, font=self.f_tiny, fill=(255,255,255,255))
 
         return self._mark_all_dirty_if_changed()

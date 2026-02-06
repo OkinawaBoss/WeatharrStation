@@ -8,12 +8,20 @@ class Layer:
     """Base class for an on-screen element that owns an offscreen RGBA surface."""
     z: int = 0
 
-    def __init__(self, x: int, y: int, w: int, h: int, min_interval: float = 1.0):
+    def __init__(self, x: int, y: int, w: int, h: int, min_interval: float = 1.0, scale: float = 1.0):
         self.bounds = (x, y, w, h)
         self.min_interval = max(0.001, float(min_interval))
         self.surface = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         self._last_hash: int | None = None
         self.visible: bool = True
+        try:
+            self.scale = float(scale or 1.0)
+        except (TypeError, ValueError):
+            self.scale = 1.0
+
+    def s(self, value: float, minimum: int = 0) -> int:
+        scaled = int(round(value * self.scale))
+        return max(minimum, scaled)
 
     def tick(self, now: float) -> List[DirtyRect]:
         """Subclasses: redraw self.surface if needed and return dirty rects (layer-local)."""

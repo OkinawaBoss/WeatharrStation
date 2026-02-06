@@ -19,10 +19,11 @@ class RegionalLayer(Layer):
                  get_points:Callable[[],List[Dict[str,Any]]],
                  get_map:Callable[[],Image.Image|None],
                  get_bounds:Callable[[],Tuple[float,float,float,float]|None],
-                 min_interval:float=15.0):
-        super().__init__(x,y,w,h,min_interval=min_interval)
+                 min_interval:float=15.0,
+                 scale: float = 1.0):
+        super().__init__(x,y,w,h,min_interval=min_interval, scale=scale)
         self.get_points=get_points; self.get_map=get_map; self.get_bounds=get_bounds
-        self.f_sm = _font(30)
+        self.f_sm = _font(self.s(30, 10))
 
     def tick(self, now: float):
         draw=ImageDraw.Draw(self.surface)
@@ -41,11 +42,11 @@ class RegionalLayer(Layer):
             grid=(40,60,80,160)
             for f in (0.25,0.5,0.75):
                 y=int(f*self.surface.height); x=int(f*self.surface.width)
-                draw.line((0,y,self.surface.width,y), fill=grid, width=2)
-                draw.line((x,0,x,self.surface.height), fill=grid, width=2)
+                draw.line((0,y,self.surface.width,y), fill=grid, width=self.s(2, 1))
+                draw.line((x,0,x,self.surface.height), fill=grid, width=self.s(2, 1))
 
         if not pts:
-            draw.text((24,24),"No nearby station data", font=self.f_sm, fill=(255,255,255,255))
+            draw.text((self.s(24), self.s(24)),"No nearby station data", font=self.f_sm, fill=(255,255,255,255))
             return self._mark_all_dirty_if_changed()
 
         b=self.get_bounds()
@@ -71,17 +72,19 @@ class RegionalLayer(Layer):
             ip=find_icon_path(pick_icon(p.get("condition"), p.get("is_day")))
             if ip:
                 try:
-                    icon=Image.open(ip).convert("RGBA").resize((48,48))
-                    self.surface.paste(icon,(x-24,y-24),icon)
+                    icon_size = self.s(48, 1)
+                    icon=Image.open(ip).convert("RGBA").resize((icon_size, icon_size))
+                    self.surface.paste(icon,(x-(icon_size//2),y-(icon_size//2)),icon)
                 except Exception:
                     pass
-            draw.ellipse((x-7,y-7,x+7,y+7), fill=(255,255,255,255))
+            dot = self.s(7, 1)
+            draw.ellipse((x-dot,y-dot,x+dot,y+dot), fill=(255,255,255,255))
             draw.text(
-                (x+16,y-16),
+                (x+self.s(16, 1),y-self.s(16, 1)),
                 f"{p.get('name','')} {p.get('temp','--')}",
                 font=self.f_sm,
                 fill=(250,252,255,255),
-                stroke_width=4,
+                stroke_width=self.s(4, 1),
                 stroke_fill=(0,0,0,220),
             )
         return self._mark_all_dirty_if_changed()

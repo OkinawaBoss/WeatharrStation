@@ -24,15 +24,15 @@ class RadarLayer(Layer):
     - Optionally provide `get_new_frames()` callable that returns a list of PIL images; we ingest them when present.
     - min_interval controls playback rate (e.g., 0.1s => 10 FPS).
     """
-    def __init__(self,x:int,y:int,w:int,h:int,min_interval:float=0.1, get_new_frames:Callable[[],List[Tuple[Image.Image, str]]] | None=None, frame_hold:int=3):
-        super().__init__(x,y,w,h,min_interval=min_interval)
+    def __init__(self,x:int,y:int,w:int,h:int,min_interval:float=0.1, get_new_frames:Callable[[],List[Tuple[Image.Image, str]]] | None=None, frame_hold:int=3, scale: float = 1.0):
+        super().__init__(x,y,w,h,min_interval=min_interval, scale=scale)
         self.frames: deque[Image.Image] = deque(maxlen=12)
         self.labels: deque[str] = deque(maxlen=12)
         self.idx = 0
         self.get_new_frames = get_new_frames
         self.frame_hold = max(1, int(frame_hold))
         self._hold_counter = 0
-        self.font = _font(32)
+        self.font = _font(self.s(32, 10))
 
     def ingest_frame(self, img: Image.Image, label: str | None = ""):
         if img is None:
@@ -74,10 +74,10 @@ class RadarLayer(Layer):
             bbox = draw.textbbox((0, 0), label, font=self.font)
             text_w = bbox[2] - bbox[0]
             text_h = bbox[3] - bbox[1]
-            pad_x = 18
-            pad_y = 12
-            x = max(16, self.surface.width - text_w - pad_x * 2)
-            y = max(16, self.surface.height - text_h - pad_y * 2)
+            pad_x = self.s(18, 1)
+            pad_y = self.s(12, 1)
+            x = max(self.s(16, 1), self.surface.width - text_w - pad_x * 2)
+            y = max(self.s(16, 1), self.surface.height - text_h - pad_y * 2)
             draw.rectangle((x - pad_x, y - pad_y, x + text_w + pad_x, y + text_h + pad_y), fill=(8, 12, 24, 170))
             draw.text((x, y), label, font=self.font, fill=(235, 242, 255, 255))
 

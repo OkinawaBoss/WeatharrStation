@@ -17,6 +17,7 @@ class Config:
 
     # Output stream pacing (encoder CFR only)
     output_fps: int
+    video_kbps: int
 
     # Destination (udp/srt/file/http-ts, etc.)
     out_url: str
@@ -53,6 +54,7 @@ def parse_args(argv: list[str] | None = None) -> Config:
     out.add_argument("--w", "--width", dest="width", type=int, default=1920)
     out.add_argument("--h", "--height", dest="height", type=int, default=1080)
     out.add_argument("--output-fps", type=int, default=30, help="Encoder CFR; compositor is event-driven")
+    out.add_argument("--video-kbps", type=int, default=3500, help="Video bitrate in kbps")
     out.add_argument("--out", dest="out_url", type=str, default="udp://127.0.0.1:5000?pkt_size=1316")
 
     data = p.add_argument_group("Data & UI")
@@ -107,6 +109,7 @@ def parse_args(argv: list[str] | None = None) -> Config:
         width=args.width,
         height=args.height,
         output_fps=args.output_fps,
+        video_kbps=args.video_kbps,
         out_url=args.out_url,
         data_interval_sec=args.data_interval_sec,
         ticker_speed_px_per_sec=args.ticker_speed_px_per_sec,

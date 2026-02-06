@@ -1,0 +1,239 @@
+{
+  "name": "Weatharr Station",
+  "version": "1.0",
+  "description": "Start a local WeatherStream broadcast and publish it as a channel.",
+  "fields": [
+    {
+      "id": "defaults_info",
+      "label": "Defaults",
+      "type": "info",
+      "description": "These defaults apply to all stations."
+    },
+    {
+      "id": "fps",
+      "label": "Default Frames Per Second",
+      "type": "number",
+      "default": 24,
+      "help_text": "Default output frame rate (1\u201360)."
+    },
+    {
+      "id": "resolution",
+      "label": "Default Resolution",
+      "type": "select",
+      "default": "1920x1080",
+      "help_text": "Default output resolution for WeatherStream feeds.",
+      "options": [
+        {
+          "value": "3840x2160",
+          "label": "4K (3840x2160)"
+        },
+        {
+          "value": "1920x1080",
+          "label": "1080p (1920x1080)"
+        },
+        {
+          "value": "1280x720",
+          "label": "720p (1280x720)"
+        },
+        {
+          "value": "960x540",
+          "label": "540p (960x540)"
+        },
+        {
+          "value": "854x480",
+          "label": "480p (854x480)"
+        },
+        {
+          "value": "640x360",
+          "label": "360p (640x360)"
+        }
+      ]
+    },
+    {
+      "id": "video_kbps",
+      "label": "Default Video Bitrate (kbps)",
+      "type": "number",
+      "default": 3500,
+      "min": 500,
+      "max": 20000,
+      "step": 100,
+      "help_text": "Default target video bitrate in kbps."
+    },
+    {
+      "id": "rss_urls",
+      "label": "Default RSS/Atom Feeds",
+      "type": "string",
+      "default": "",
+      "help_text": "Default feed URLs, separated by commas (you can also paste with newlines/semicolons)."
+    },
+    {
+      "id": "rss_refresh_sec",
+      "label": "Default RSS Refresh (seconds)",
+      "type": "number",
+      "default": 300,
+      "help_text": "Default RSS refresh interval. Default 300."
+    },
+    {
+      "id": "rss_max_items",
+      "label": "Default Max Items Per Feed",
+      "type": "number",
+      "default": 3,
+      "help_text": "Default titles per feed. Default 3."
+    },
+    {
+      "id": "station_1_info",
+      "label": "Station 1",
+      "type": "info",
+      "description": "Configure a WeatherStream station and channel."
+    },
+    {
+      "id": "station_1_enabled",
+      "label": "Enable Station 1",
+      "type": "boolean",
+      "default": true,
+      "help_text": "Enable this station when starting the plugin."
+    },
+    {
+      "id": "zip_code",
+      "label": "ZIP Code",
+      "type": "string",
+      "default": "",
+      "help_text": "5-digit ZIP used to localize the weather feed"
+    },
+    {
+      "id": "timezone",
+      "label": "Time Zone",
+      "type": "string",
+      "default": "",
+      "help_text": "Optional IANA time zone (e.g., 'America/Chicago'). Leave blank to auto-detect from ZIP (WeatherStream will attempt this)."
+    },
+    {
+      "id": "location_name",
+      "label": "Location Name",
+      "type": "string",
+      "default": "",
+      "help_text": "Optional display name (e.g., 'Salt Lake City, UT'). If blank, we\u2019ll resolve from ZIP."
+    },
+    {
+      "id": "channel_number",
+      "label": "Channel Number",
+      "type": "number",
+      "default": "",
+      "help_text": "Optional channel number in the Weather group. If already taken there, the plugin will refuse to start."
+    },
+    {
+      "id": "station_2_info",
+      "label": "Station 2",
+      "type": "info",
+      "description": "Configure a WeatherStream station and channel."
+    },
+    {
+      "id": "station_2_enabled",
+      "label": "Enable Station 2",
+      "type": "boolean",
+      "default": false,
+      "help_text": "Enable this station when starting the plugin."
+    },
+    {
+      "id": "station_2_zip_code",
+      "label": "ZIP Code",
+      "type": "string",
+      "default": "",
+      "help_text": "5-digit ZIP used to localize the weather feed"
+    },
+    {
+      "id": "station_2_timezone",
+      "label": "Time Zone",
+      "type": "string",
+      "default": "",
+      "help_text": "Optional IANA time zone (e.g., 'America/Chicago'). Leave blank to auto-detect from ZIP (WeatherStream will attempt this)."
+    },
+    {
+      "id": "station_2_location_name",
+      "label": "Location Name",
+      "type": "string",
+      "default": "",
+      "help_text": "Optional display name (e.g., 'Salt Lake City, UT'). If blank, we\u2019ll resolve from ZIP."
+    },
+    {
+      "id": "station_2_channel_number",
+      "label": "Channel Number",
+      "type": "number",
+      "default": "",
+      "help_text": "Optional channel number in the Weather group. If already taken there, the plugin will refuse to start."
+    },
+    {
+      "id": "station_3_info",
+      "label": "Station 3",
+      "type": "info",
+      "description": "Configure a WeatherStream station and channel."
+    },
+    {
+      "id": "station_3_enabled",
+      "label": "Enable Station 3",
+      "type": "boolean",
+      "default": false,
+      "help_text": "Enable this station when starting the plugin."
+    },
+    {
+      "id": "station_3_zip_code",
+      "label": "ZIP Code",
+      "type": "string",
+      "default": "",
+      "help_text": "5-digit ZIP used to localize the weather feed"
+    },
+    {
+      "id": "station_3_timezone",
+      "label": "Time Zone",
+      "type": "string",
+      "default": "",
+      "help_text": "Optional IANA time zone (e.g., 'America/Chicago'). Leave blank to auto-detect from ZIP (WeatherStream will attempt this)."
+    },
+    {
+      "id": "station_3_location_name",
+      "label": "Location Name",
+      "type": "string",
+      "default": "",
+      "help_text": "Optional display name (e.g., 'Salt Lake City, UT'). If blank, we\u2019ll resolve from ZIP."
+    },
+    {
+      "id": "station_3_channel_number",
+      "label": "Channel Number",
+      "type": "number",
+      "default": "",
+      "help_text": "Optional channel number in the Weather group. If already taken there, the plugin will refuse to start."
+    }
+  ],
+  "actions": [
+    {
+      "id": "start",
+      "label": "Start",
+      "description": "Launch WeatherStream with the saved ZIP code",
+      "button_label": "Start"
+    },
+    {
+      "id": "stop",
+      "label": "Stop",
+      "description": "Terminate the WeatherStream process",
+      "confirm": {
+        "required": true,
+        "title": "Stop Weatharr Station?",
+        "message": "This will terminate the running WeatherStream instance."
+      },
+      "button_label": "Stop"
+    },
+    {
+      "id": "reset_defaults",
+      "label": "Reset to Defaults",
+      "description": "Restore Weatharr Station settings to their default values and stop any running backend.",
+      "confirm": {
+        "required": true,
+        "title": "Reset Weatharr Station settings?",
+        "message": "This will stop the WeatherStream backend and restore default configuration values."
+      },
+      "button_label": "Reset"
+    }
+  ],
+  "author": "OkinawaBoss",
+  "help_url": "https://github.com/OkinawaBoss/WeatharrStation"
+}

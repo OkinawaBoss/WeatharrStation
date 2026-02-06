@@ -34,12 +34,13 @@ class ClockLayer(Layer):
         h: int,
         min_interval: float = 1.0,
         temp_supplier=None,
+        scale: float = 1.0,
     ):
-        super().__init__(x, y, w, h, min_interval=min_interval)
+        super().__init__(x, y, w, h, min_interval=min_interval, scale=scale)
         self.temp_supplier = temp_supplier
-        self.font_time = _font(72)
-        self.font_date = _font(36)
-        self.font_temp = _font(36)
+        self.font_time = _font(self.s(72, 12))
+        self.font_date = _font(self.s(36, 10))
+        self.font_temp = _font(self.s(36, 10))
         self._state: tuple[str, str, str] | None = None
 
     def _current_temp(self) -> str:
@@ -65,10 +66,10 @@ class ClockLayer(Layer):
         draw = ImageDraw.Draw(self.surface)
         draw.rectangle((0, 0, self.surface.width, self.surface.height), fill=(0, 0, 0, 0))
 
-        right = self.surface.width - 16
+        right = self.surface.width - self.s(16)
         time_box = draw.textbbox((0, 0), time_str, font=self.font_time)
         draw.text(
-            (right - (time_box[2] - time_box[0]), 0),
+            (right - (time_box[2] - time_box[0]), self.s(0)),
             time_str,
             font=self.font_time,
             fill=(235, 242, 255, 255),
@@ -76,7 +77,7 @@ class ClockLayer(Layer):
 
         date_box = draw.textbbox((0, 0), date_str, font=self.font_date)
         draw.text(
-            (right - (date_box[2] - date_box[0]), 82),
+            (right - (date_box[2] - date_box[0]), self.s(82)),
             date_str,
             font=self.font_date,
             fill=(210, 220, 230, 255),
@@ -85,7 +86,7 @@ class ClockLayer(Layer):
         if temp_str:
             temp_box = draw.textbbox((0, 0), temp_str, font=self.font_temp)
             draw.text(
-                (right - (temp_box[2] - temp_box[0]), 132),
+                (right - (temp_box[2] - temp_box[0]), self.s(132)),
                 temp_str,
                 font=self.font_temp,
                 fill=(255, 230, 140, 255),

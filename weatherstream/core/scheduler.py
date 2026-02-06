@@ -17,13 +17,17 @@ class Scheduler:
             heapq.heappush(self.heap, (now, i))
         self.next_cfr = now + (1 / self.cfr) if self.cfr else float("inf")
 
-    def run_forever(self, compositor: Compositor, on_present):
+    def run_forever(self, compositor: Compositor, on_present, should_stop=None):
         while True:
+            if should_stop and should_stop():
+                break
             now = time.time()
             wake_at = min(self.heap[0][0], self.next_cfr)
             if now < wake_at:
                 time.sleep(max(0.0, wake_at - now))
                 now = time.time()
+                if should_stop and should_stop():
+                    break
 
             dirty = []
             while self.heap and self.heap[0][0] <= now:
