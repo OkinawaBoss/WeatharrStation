@@ -180,7 +180,7 @@ def _build_station_fields(station_count: int) -> list[dict[str, Any]]:
 
 class Plugin:
     name = "Weatharr Station"
-    version = "1.0"
+    version = "2.0"
     description = "Start a local WeatherStream broadcast and publish it as a channel."
     author = "OkinawaBoss"
     help_url = "https://github.com/OkinawaBoss/WeatharrStation"
